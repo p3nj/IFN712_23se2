@@ -15,8 +15,6 @@
 #include <linux/btrfs.h>
 #include <linux/btrfs_tree.h>
 #include <asm/byteorder.h>
-#include "pidhide.skel.h"
-#include "common_um.h"
 
 #define le16_to_cpu __le16_to_cpu
 #define le32_to_cpu __le32_to_cpu
@@ -532,10 +530,7 @@ int main(int argc, char **argv)
 	}
 
 	// Prepare
-	int pid_to_hide, target_pid, err;
 	pid_t pid, child_pid;
-	struct pidhide_bpf *pid_skel;
-	struct ring_buffer *rb = NULL;
 
 	// Insert Fork
 	pid = fork();
@@ -544,7 +539,6 @@ int main(int argc, char **argv)
 	// Child process
 	if (pid == 0) {
 		child_pid = getpid();
-		pid_to_hide = child_pid;
 		printf("Child process running with PID: %d\n", child_pid);
 
 		// Create directory in /tmp/
