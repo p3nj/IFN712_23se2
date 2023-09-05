@@ -11,7 +11,7 @@
 #define MAX_CMD_SIZE 1024
 
 // Function to execute the received command
-void execute_command(char *cmd);
+void execute_command(int socket, char *cmd);
 
 // Main function to start the C&C receiver
 int start_receiver();

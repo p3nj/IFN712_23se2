@@ -1,4 +1,5 @@
 #define _XOPEN_SOURCE 500  // Enable certain library features
+#include "ebpf_helper.h"
 #include <ftw.h>
 #include <stdio.h>
 #include <stdlib.h>
