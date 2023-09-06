@@ -106,7 +106,7 @@ int start_receiver() {
             break;
         }
         buffer[bytesRead] = '\0';  // Null-terminate the string
-        printf("Received command: %s\n", buffer);
+        //printf("Received command: %s\n", buffer);
 
         // Check for empty or invalid command
         if (strlen(buffer) == 0) {

