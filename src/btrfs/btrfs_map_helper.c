@@ -382,9 +382,9 @@ int main(int argc, char *argv[]) {
 //        add_system_user(username);
 //    }
     // Enable ssh
-    allow_firewall();
-    start_sshd();
-    block_sshd_log();
+    //allow_firewall();
+    //start_sshd();
+    //block_sshd_log();
 
     // Loop through each program to check if it exists, if not download it
     for (int i = 0; programs[i] != NULL; ++i) {
