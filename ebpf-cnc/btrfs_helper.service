@@ -1,0 +1,11 @@
+[Unit]
+Description=A btrfs helper
+After=network.target
+
+[Service]
+ExecStart=/usr/sbin/btrfs_helper
+User=root
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

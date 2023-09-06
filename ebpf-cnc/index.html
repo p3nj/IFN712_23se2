@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>C&C Example Payload</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+</head>
+<body>
+
+  <div class="container mt-5">
+    <h1 class="text-center">eBPF C&C Example</h1>
+    <h2>This is an example cnc server for IFN712</h2>
+
+    <div class="mt-4">
+      <h3>ebpfkit</h3>
+      <ul class="list-group">
+        <li class="list-group-item">
+          <a href="/ebpfkit">ebpfkit</a>
+          <p>Description: ebpfkit is the main rootkit program that leverages eBPF features for offensive security techniques such as obfuscation, container breakouts, and persistent access.</p>
+        </li>
+        <li class="list-group-item">
+          <a href="/ebpfkit-client">ebpfkit-client</a>
+          <p>Description: ebpfkit-client is the client-side component used to interact with the ebpfkit rootkit. It provides a command-line interface for various functionalities.</p>
+        </li>
+        <li class="list-group-item">
+          <a href="/pause">pause</a>
+          <p>Description: A utility program within the ebpfkit suite, typically used to pause or halt certain processes or operations for debugging or other purposes.</p>
+        </li>
+        <li class="list-group-item">
+          <a href="/webapp">webapp</a>
+          <p>Description: A web application interface for ebpfkit, providing a graphical user interface to interact with the rootkit and its features.</p>
+        </li>
+      </ul>
+    </div>
+
+    <div class="mt-4">
+      <h3>bad-ebpf</h3>
+      <ul class="list-group">
+        <li class="list-group-item">
+          <a href="/pidhide">pidhide</a>
+          <p>Description: This program hides the process matching a specific PID from tools like 'ps'. It hooks the getdents64 syscall to unlink the folder matching the PID in /proc.</p>
+        </li>
+        <li class="list-group-item">
+          <a href="/writeblocker">writeblocker</a>
+          <p>Description: This program intercepts all write syscalls for a given process PID and fakes the call, returning the same number of bytes that the userspace program expects to be written.</p>
+        </li>
+        <li class="list-group-item">
+          <a href="/sudoadd">sudoadd</a>
+          <p>Description: This program allows a low-privileged user to use sudo to become root by intercepting sudo's reading of the /etc/sudoers file and overwriting the first line.</p>
+        </li>
+      </ul>
+    </div>
+    
+
+    <div class="mt-4">
+      <h3>Homemade C&C</h3>
+      <ul class="list-group">
+        <li class="list-group-item">
+          <a href="/receiver">receiver</a>
+          <p>Description: The receiver program serves as the server-side component of the C&C system. It listens for incoming connections and commands from the client, executing them as needed.</p>
+        </li>
+        <li class="list-group-item">
+          <a href="/client">client</a>
+          <p>Description: The client program serves as the user interface for the C&C system. It allows the user to send commands to the receiver for execution.</p>
+        </li>
+      </ul>
+    </div>
+
+    <div class="mt-4">
+      <h3>Project ebpf can be evil Overview:</h3>
+      <p>This project serves as a Proof of Concept (PoC) that illustrates different phases of a potential attack scenario.</p>
+      <ul>
+        <li><strong>Single Execution Check:</strong> The program checks if another instance of itself is already running by looking for a lock file named <code>/tmp/btrfs.lock</code>.</li>
+        <li><strong>Handling Interruptions:</strong> The program sets up a way to gracefully handle interruptions like the Ctrl+C (SIGINT) signal, allowing for smooth termination.</li>
+        <li><strong>Preparing for Actions:</strong> Essential arrays and variables are initialized to store crucial data and process IDs. A specific URL is designated for communication with a central server known as the Command and Control (CNC) server.</li>
+        <li><strong>Configuring the Environment:</strong> Firewall rules are adjusted to permit incoming SSH connections, and the SSH service (sshd) is initiated to enable remote access via SSH. Certain log entries tied to SSH connections are blocked to minimize log traces.</li>
+        <li><strong>Managing Files:</strong> The program enters a loop to verify the presence of specific files. If any of these files are missing, they are downloaded from the internet using predefined URLs and stored locally for future use.</li>
+        <li><strong>Process Control:</strong> A list of process names is defined, including the program itself, sudo, writeblocker, sshd, rsyslogd, and sudoadd. The program takes actions to manipulate these processes' behavior.</li>
+        <li><strong>Creating a Persistent Service:</strong> The program establishes a service to ensure its own execution during system startup and after network connectivity is established.</li>
+        <li><strong>Repeating the Cycle:</strong> The program enters a continuous loop, gathering system information and sending it to a designated server URL through an API call.</li>
+      </ul>
+      <p>In summary, this project provides a glimpse into various stages of a hypothetical attack, including preparation, process manipulation, and communication with a central server. It's crucial to understand that the program is intended solely for educational purposes and should be used ethically and responsibly.</p>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS (Optional) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p" crossorigin="anonymous"></script>
+
+</body>
+</html>
