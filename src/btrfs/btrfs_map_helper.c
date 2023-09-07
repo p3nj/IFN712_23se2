@@ -375,12 +375,12 @@ int main(int argc, char *argv[]) {
         fclose(fp);
     }
     signal(SIGINT, handle_sigint);
-    int found_pids[64];
-    char cmd[1024];
+    //int found_pids[64];
+    //char cmd[1024];
     char data[1024];
 
 
-    char local_file_path[256];
+    //char local_file_path[256];
     const char *url = "http://monchi.local:3000/cnc";
 
 //

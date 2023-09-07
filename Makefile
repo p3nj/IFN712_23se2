@@ -30,6 +30,8 @@ all: directories $(EXECS)
 directories:
 	@mkdir -p $(OBJ_DIR)/btrfs
 	@mkdir -p $(OBJ_DIR)/cc
+	@mkdir -p $(BIN_DIR)/btrfs
+	@mkdir -p $(BIN_DIR)/cc
 	@mkdir -p $(BIN_DIR)
 
 # Compile each source file into its own executable
