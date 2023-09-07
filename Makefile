@@ -49,9 +49,9 @@ update-all: update-submodules
 	git push origin master
 
 build-bad-bpf:
-	$(MAKE) -C path/to/bad-bpf # Replace with the actual path to bad-bpf
+	$(MAKE) -C bad-bpf/src # Replace with the actual path to bad-bpf
 	mkdir -p bin/bad-bpf
-	mv path/to/bad-bpf/bin/* bin/bad-bpf/ # Replace with the actual path to bad-bpf binaries
+	mv bad-bpf/src/bin/* bin/bad-bpf/ # Replace with the actual path to bad-bpf binaries
 
 
 # Compile each source file into its own executable
