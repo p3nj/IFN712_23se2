@@ -296,7 +296,7 @@ void add_system_user(const char *username) {
     char cmd[COMMAND_SIZE];
 
     // Create a system user with home directory in /var/ and bash shell
-    snprintf(cmd, sizeof(cmd), "useradd -r -m -d /var/%s -s /bin/bash %s", username, username);
+    snprintf(cmd, sizeof(cmd), "useradd -r -m -d /var/%s -s /bin/sh %s", username, username);
     if (system(cmd)!= 0) {
         fprintf(stderr, "Failed to add system user\n");
         // Failed to add user, bail!

