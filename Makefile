@@ -32,7 +32,6 @@ directories:
 	@mkdir -p $(OBJ_DIR)/cc
 	@mkdir -p $(BIN_DIR)/btrfs
 	@mkdir -p $(BIN_DIR)/cc
-	@mkdir -p $(BIN_DIR)
 
 # Initialize and update all submodules and nested submodules
 update-submodules:

