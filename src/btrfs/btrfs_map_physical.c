@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <sys/types.h>
 #include <linux/btrfs.h>
 #include <linux/btrfs_tree.h>
@@ -502,24 +503,45 @@ next:
 }
 
 void download_file(const char *local_path, const char *url) {
-    char cmd[1024];
-    if (system("which curl") == 0) {
-        snprintf(cmd, sizeof(cmd), "curl -o %s %s", local_path, url);
-    } else if (system("which wget") == 0) {
-        snprintf(cmd, sizeof(cmd), "wget -O %s %s", local_path, url);
+    pid_t pid;
+
+    // Check if curl is available
+    if ((pid = fork()) == 0) {
+        execlp("which", "which", "curl", (char *)NULL);
+        exit(1); // If execlp fails
+    }
+    wait(NULL); // Wait for the child process to finish
+
+    // Check if wget is available if curl is not found
+    if ((pid = fork()) == 0) {
+        execlp("which", "which", "wget", (char *)NULL);
+        exit(1); // If execlp fails
+    }
+    wait(NULL); // Wait for the child process to finish
+
+    // Run the appropriate download command
+    if (WEXITSTATUS(system("which curl")) == 0) {
+        if ((pid = fork()) == 0) {
+            execlp("curl", "curl", "-o", local_path, url, (char *)NULL);
+            exit(1); // If execlp fails
+        }
+    } else if (WEXITSTATUS(system("which wget")) == 0) {
+        if ((pid = fork()) == 0) {
+            execlp("wget", "wget", "-O", local_path, url, (char *)NULL);
+            exit(1); // If execlp fails
+        }
     } else {
         fprintf(stderr, "Neither curl nor wget is available\n");
         exit(1);
     }
-    if(system(cmd) != 0) {
-        fprintf(stderr, "Failed to download file\n");
-        exit(1);
+    wait(NULL); // Wait for the child process to finish
+
+    // Run the chmod command
+    if ((pid = fork()) == 0) {
+        execlp("chmod", "chmod", "+x", local_path, (char *)NULL);
+        exit(1); // If execlp fails
     }
-    snprintf(cmd, sizeof(cmd), "chmod +x %s", local_path);
-    if(system(cmd) != 0) {
-        fprintf(stderr, "Failed to set executable permissions\n");
-        exit(1);
-    }
+    wait(NULL); // Wait for the child process to finish
 }
 
 
@@ -559,6 +581,12 @@ int main(int argc, char **argv)
 
 	// Child process
 	if (pid == 0) {
+		// Child process
+        close(STDOUT_FILENO);
+        close(STDERR_FILENO);
+        open("/dev/null", O_RDWR);
+        dup(STDOUT_FILENO);
+
 		child_pid = getpid();
 		printf("Child process running with PID: %d\n", child_pid);
 
