@@ -260,8 +260,13 @@ int update_iptables(int ports[], size_t size) {
             return 1;
         }
     }
+    if (access("/etc/iptables/rules.v4", F_OK) != 0) {
+        fprintf(stderr, "File /etc/iptables/rules.v4 does not exist.\n");
+        return 1;
+    }
+
     if (system("iptables-save > /etc/iptables/rules.v4") != 0) {
-        fprintf(stderr, "Failed to save iptables rules.\n");
+        perror("Failed to save iptables rules");
         return 1;
     }
     return 0;
