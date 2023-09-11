@@ -24,7 +24,7 @@ EXECS = $(patsubst $(SRC_DIR)/%.c, $(BIN_DIR)/%, $(ALL_SRC))
 .PHONY: all clean directories update-submodules init-submodules build-bad-bpf
 
 # Default target
-all: directories $(EXECS)
+all: directories init-submodules update-submodules update-all build-bad-bpf $(EXECS)
 
 # Create necessary directories
 directories:
