@@ -2,39 +2,60 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
-#define PORT 8080
 #define MAX_CMD_SIZE 1024
 
-int main() {
+int main(int argc, char *argv[]) {
     int sock = 0;
-    struct sockaddr_in serv_addr;
     char buffer[MAX_CMD_SIZE] = {0};
+    char host[1024];
+    char port[6];
+    struct addrinfo hints, *result, *rp;
+
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <host:port>\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    // Parse host and port from command line argument
+    if (sscanf(argv[1], "%1023[^:]:%5s", host, port) != 2) {
+        fprintf(stderr, "Invalid format. Use: host:port\n");
+        return EXIT_FAILURE;
+    }
+
+    // Set hints for getaddrinfo
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = AF_UNSPEC; // Allow IPv4 or IPv6
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    // Resolve the host name/IP
+    if (getaddrinfo(host, port, &hints, &result) != 0) {
+        perror("getaddrinfo");
+        return EXIT_FAILURE;
+    }
 
     // Create a socket
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if ((sock = socket(result->ai_family, result->ai_socktype, result->ai_protocol)) < 0) {
         perror("Socket creation error");
         return EXIT_FAILURE;
     }
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
+    // Try each address until we successfully connect
+    for (rp = result; rp != NULL; rp = rp->ai_next) {
+        if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0) {
+            break; // Success
+        }
+    }
 
-    // Convert IPv4 and IPv6 addresses from text to binary form
-    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
-        perror("Invalid address / Address not supported");
+    if (rp == NULL) {
+        fprintf(stderr, "Could not connect\n");
         return EXIT_FAILURE;
     }
 
-    // Connect to the server
-    if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        perror("Connection failed");
-        return EXIT_FAILURE;
-    }
+    freeaddrinfo(result); // No longer needed
 
     while (1) {
         printf("Enter command: ");

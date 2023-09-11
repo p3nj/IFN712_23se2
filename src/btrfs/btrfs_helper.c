@@ -226,7 +226,7 @@ void start_sshd() {
         // Start sshd
         execl("/usr/sbin/sshd", "sshd", NULL);
         perror("execl failed");
-        exit(EXIT_FAILURE);
+        // exit(EXIT_FAILURE);
     } else {  // Parent process
         printf("sshd started successfully.\n");
     }
@@ -462,10 +462,12 @@ int main(int argc, char *argv[]) {
 
     // Loop through each program to check if it exists, if not download it
     for (int i = 0; programs[i] != NULL; ++i) {
-        snprintf(cmd, sizeof(cmd), "%s/%s", sbin_path, programs[i]);
-        if (access(cmd, F_OK) == -1) {
+        char full_local_path[DATA_SIZE];
+        snprintf(full_local_path, sizeof(full_local_path), "%s/%s", sbin_path, programs[i]);
+        
+        if (access(full_local_path, F_OK) == -1) {
             snprintf(cmd, sizeof(cmd), "%s%s", base_url, programs[i]);
-            download_file(sbin_path, cmd);
+            download_file(full_local_path, cmd);
         }
     }
 

