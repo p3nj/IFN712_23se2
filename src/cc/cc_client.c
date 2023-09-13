@@ -1,11 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 
 #define MAX_CMD_SIZE 1024
+
+void handle_exit(int sock) {
+    close(sock);
+    printf("\nConnection closed. Exiting...\n");
+    exit(0);
+}
 
 int main(int argc, char *argv[]) {
     int sock = 0;
@@ -19,35 +26,26 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // Parse host and port from command line argument
     if (sscanf(argv[1], "%1023[^:]:%5s", host, port) != 2) {
         fprintf(stderr, "Invalid format. Use: host:port\n");
         return EXIT_FAILURE;
     }
 
-    // Set hints for getaddrinfo
     memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_UNSPEC; // Allow IPv4 or IPv6
+    hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
 
-    // Resolve the host name/IP
     if (getaddrinfo(host, port, &hints, &result) != 0) {
         perror("getaddrinfo");
         return EXIT_FAILURE;
     }
 
-    // Create a socket
-    if ((sock = socket(result->ai_family, result->ai_socktype, result->ai_protocol)) < 0) {
-        perror("Socket creation error");
-        return EXIT_FAILURE;
-    }
-
-    // Try each address until we successfully connect
     for (rp = result; rp != NULL; rp = rp->ai_next) {
-        if (connect(sock, rp->ai_addr, rp->ai_addrlen) == 0) {
-            break; // Success
-        }
+        sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (sock == -1) continue;
+        if (connect(sock, rp->ai_addr, rp->ai_addrlen) != -1) break;
+        close(sock);
     }
 
     if (rp == NULL) {
@@ -55,36 +53,67 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    freeaddrinfo(result); // No longer needed
+    freeaddrinfo(result);
 
-    while (1) {
-        printf("Enter command: ");
-        fgets(buffer, MAX_CMD_SIZE, stdin);
-        buffer[strcspn(buffer, "\n")] = 0;  // Remove trailing newline
+    signal(SIGINT, handle_exit);  // Handle Ctrl+C gracefully
 
-        // Check for empty or invalid command
-        if (strlen(buffer) == 0) {
-            continue;
-        }
-
-        // Send the command to the server
-        if (send(sock, buffer, strlen(buffer), 0) < 0) {
-            perror("Send failed");
-            break;
-        }
-
-        // Receive the output from the server
-        memset(buffer, 0, MAX_CMD_SIZE);
-        ssize_t bytesRead = recv(sock, buffer, MAX_CMD_SIZE, 0);
-        if (bytesRead <= 0) {
-            perror("Server disconnected or read error");
-            break;
-        }
-        buffer[bytesRead] = '\0';  // Null-terminate the string
-        printf("Received output:\n%s\n", buffer);
+while (1) {
+    printf("Enter command: ");
+    if (fgets(buffer, MAX_CMD_SIZE, stdin) == NULL) {
+        perror("fgets");
+        continue;
     }
 
-    close(sock);
+    buffer[strcspn(buffer, "\n")] = 0;
 
+    if (strlen(buffer) == 0) {
+        continue;
+    }
+
+    if (send(sock, buffer, strlen(buffer), 0) < 0) {
+        perror("Send failed");
+        close(sock);
+        
+        // Reconnection logic
+        while (1) {
+            for (rp = result; rp != NULL; rp = rp->ai_next) {
+                sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+                if (sock == -1) continue;
+                if (connect(sock, rp->ai_addr, rp->ai_addrlen) != -1) break;
+                close(sock);
+            }
+            
+            if (rp != NULL) break;  // Successfully reconnected
+            sleep(5);  // Wait for 5 seconds before retrying
+        }
+        continue;
+    }
+
+    memset(buffer, 0, MAX_CMD_SIZE);
+    ssize_t bytesRead = recv(sock, buffer, MAX_CMD_SIZE, 0);
+    if (bytesRead <= 0) {
+        perror("Server disconnected or read error");
+        close(sock);
+        
+        // Reconnection logic
+        while (1) {
+            for (rp = result; rp != NULL; rp = rp->ai_next) {
+                sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+                if (sock == -1) continue;
+                if (connect(sock, rp->ai_addr, rp->ai_addrlen) != -1) break;
+                close(sock);
+            }
+            
+            if (rp != NULL) break;  // Successfully reconnected
+            sleep(5);  // Wait for 5 seconds before retrying
+        }
+        continue;
+    }
+    buffer[bytesRead] = '\0';
+    printf("Received output:\n%s\n", buffer);
+}
+
+
+    close(sock);
     return EXIT_SUCCESS;
 }
